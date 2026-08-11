@@ -1,0 +1,29 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Enquiry {
+  id                  String   @id @default(uuid())
+  rawText             String
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  company             Json
+  contactName         Json
+  contactEmail        Json
+  serviceLine         Json
+  budgetNormalizedUSD Json
+  budgetRawText       Json
+  timeline            Json
+  summary             Json
+  isGenuine           Json
+
+  priority            String   
+  status              String   @default("new") 
+  extractionVersion   Int      @default(1)
+  lastError           String?
+}
