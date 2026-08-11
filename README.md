@@ -24,7 +24,7 @@ Assuming Node.js and PostgreSQL are installed:
 4.  **Timeline ("ASAP" vs "Q1"):** Stored as a raw string. The model does not attempt to cast this to a strict Date object, as business timelines are inherently fluid and context-heavy.
 5.  **Multi-Project Enquiries:** Extracted into a single record. `serviceLine` defaults to the primary identifiable project, and the `summary` captures the dual nature of the request.
 
-## Re-Extraction (Requirement 5)
+## Re-Extraction
 We handled re-extraction using a `ManagedField` JSON structure in PostgreSQL (`{ extracted, value, isOverridden }`). 
 When a user manually edits a field on the UI, `isOverridden` becomes `true`. When re-extraction is triggered, the API runs the LLM again, but our `mergeField` helper discards the new AI value for any field where `isOverridden` is true, ensuring human edits are never silently destroyed.
 
