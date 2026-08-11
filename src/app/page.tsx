@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { format } from "date-fns";
-import { Search, Filter, Eye, UploadCloud, RefreshCw, FileText } from "lucide-react";
+import { Search, Filter, Eye, UploadCloud, RefreshCw, FileText, ArrowUpDown } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -36,6 +36,14 @@ export default function TriageDashboard() {
   const [enquiries, setEnquiries] = useState<EnquiryUI[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedEnquiry, setSelectedEnquiry] = useState<EnquiryUI | null>(null);
+
+  // Filter & Search State
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedService, setSelectedService] = useState<string>("all");
+  const [selectedPriority, setSelectedPriority] = useState<string>("all");
+  const [selectedStatus, setSelectedStatus] = useState<string>("all");
+  const [sortOrder, setSortOrder] = useState<"date-desc" | "date-asc" | "priority">("date-desc");
+  const [showFilters, setShowFilters] = useState(false);
 
   // Ingestion State
   const [isIngestOpen, setIsIngestOpen] = useState(false);
@@ -119,9 +127,7 @@ export default function TriageDashboard() {
     setIsIngesting(true);
     setIngestLogs(["Starting ingestion engine..."]);
 
-    // Parse the file based on dashed lines (as per the sample-enquiries.txt format)
     const rawEnquiries = ingestText.split(/-{10,}/).map(s => s.trim()).filter(Boolean);
-    
     setIngestLogs(prev => [...prev, `Found ${rawEnquiries.length} individual enquiries to process.`]);
 
     try {
@@ -150,17 +156,43 @@ export default function TriageDashboard() {
         
         const chunk = decoder.decode(value);
         setIngestLogs(prev => [...prev, chunk]);
-        // Auto-scroll logic for terminal could go here
-        
         await readChunk();
       };
       
       await readChunk();
-    } catch (error) {
+    } catch {
       toast.error("Ingestion stream failed.");
       setIsIngesting(false);
     }
   };
+
+  const filteredEnquiries = useMemo(() => {
+    return enquiries.filter((enq) => {
+      const companyVal = ((enq.company?.value as string) || "").toLowerCase();
+      const contactVal = ((enq.contactEmail?.value as string) || (enq.contactName?.value as string) || "").toLowerCase();
+      const rawTextVal = (enq.rawText || "").toLowerCase();
+      const query = searchQuery.toLowerCase();
+
+      const matchesSearch = companyVal.includes(query) || contactVal.includes(query) || rawTextVal.includes(query);
+      const matchesService = selectedService === "all" || enq.serviceLine?.value === selectedService;
+      const matchesPriority = selectedPriority === "all" || enq.priority === selectedPriority;
+      const matchesStatus = selectedStatus === "all" || enq.status === selectedStatus;
+
+      return matchesSearch && matchesService && matchesPriority && matchesStatus;
+    }).sort((a, b) => {
+      if (sortOrder === "date-desc") {
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      }
+      if (sortOrder === "date-asc") {
+        return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      }
+      if (sortOrder === "priority") {
+        const weight: Record<string, number> = { high: 3, medium: 2, low: 1 };
+        return (weight[b.priority] || 0) - (weight[a.priority] || 0);
+      }
+      return 0;
+    });
+  }, [enquiries, searchQuery, selectedService, selectedPriority, selectedStatus, sortOrder]);
 
   return (
     <div className="min-h-screen bg-zinc-50 p-4 sm:p-8">
@@ -184,14 +216,90 @@ export default function TriageDashboard() {
         </div>
 
         <Card className="shadow-sm border-zinc-200">
-          <div className="p-4 border-b border-zinc-100 flex flex-col sm:flex-row gap-4">
-            <div className="relative flex-1 max-w-full sm:max-w-sm">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-zinc-400" />
-              <Input placeholder="Search companies or contacts..." className="pl-9 bg-white w-full" />
+          <div className="p-4 border-b border-zinc-100 flex flex-col gap-4">
+            <div className="flex flex-col sm:flex-row gap-4 items-center justify-between">
+              <div className="relative flex-1 w-full sm:max-w-md">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-zinc-400" />
+                <Input 
+                  placeholder="Search company, email, or message text..." 
+                  className="pl-9 bg-white w-full"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+              </div>
+              <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                <Button 
+                  variant={showFilters ? "default" : "outline"} 
+                  className="text-zinc-600 w-full sm:w-auto"
+                  onClick={() => setShowFilters(!showFilters)}
+                >
+                  <Filter className="w-4 h-4 mr-2" /> Filters {selectedService !== "all" || selectedPriority !== "all" || selectedStatus !== "all" ? "• Active" : ""}
+                </Button>
+              </div>
             </div>
-            <Button variant="outline" className="text-zinc-600 w-full sm:w-auto">
-              <Filter className="w-4 h-4 mr-2" /> Filters
-            </Button>
+
+            {showFilters && (
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 pt-3 border-t border-zinc-100 bg-zinc-50/50 p-3 rounded-lg">
+                <div>
+                  <label className="text-xs font-semibold text-zinc-600 mb-1 block">Service Line</label>
+                  <select 
+                    className="w-full rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm"
+                    value={selectedService}
+                    onChange={(e) => setSelectedService(e.target.value)}
+                  >
+                    <option value="all">All Services</option>
+                    <option value="ai">AI</option>
+                    <option value="blockchain">Blockchain</option>
+                    <option value="web">Web</option>
+                    <option value="mobile">Mobile</option>
+                    <option value="game">Game</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-zinc-600 mb-1 block">Priority</label>
+                  <select 
+                    className="w-full rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm"
+                    value={selectedPriority}
+                    onChange={(e) => setSelectedPriority(e.target.value)}
+                  >
+                    <option value="all">All Priorities</option>
+                    <option value="high">High</option>
+                    <option value="medium">Medium</option>
+                    <option value="low">Low</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-zinc-600 mb-1 block">Status</label>
+                  <select 
+                    className="w-full rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm"
+                    value={selectedStatus}
+                    onChange={(e) => setSelectedStatus(e.target.value)}
+                  >
+                    <option value="all">All Statuses</option>
+                    <option value="new">New</option>
+                    <option value="contacted">Contacted</option>
+                    <option value="qualified">Qualified</option>
+                    <option value="dropped">Dropped</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-zinc-600 mb-1 block">Sort By</label>
+                  <select 
+                    className="w-full rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm"
+                    value={sortOrder}
+                    onChange={(e) => setSortOrder(e.target.value as "date-desc" | "date-asc" | "priority")}
+                  >
+                    <option value="date-desc">Newest First</option>
+                    <option value="date-asc">Oldest First</option>
+                    <option value="priority">Highest Priority</option>
+                  </select>
+                </div>
+              </div>
+            )}
           </div>
           
           <div className="overflow-x-auto">
@@ -210,10 +318,10 @@ export default function TriageDashboard() {
               <TableBody>
                 {loading ? (
                   <TableRow><TableCell colSpan={7} className="text-center py-8 text-zinc-500">Loading...</TableCell></TableRow>
-                ) : enquiries.length === 0 ? (
-                  <TableRow><TableCell colSpan={7} className="text-center py-8 text-zinc-500">No enquiries found. Ingest some leads to begin.</TableCell></TableRow>
+                ) : filteredEnquiries.length === 0 ? (
+                  <TableRow><TableCell colSpan={7} className="text-center py-8 text-zinc-500">No matching enquiries found.</TableCell></TableRow>
                 ) : (
-                  enquiries.map((enq) => (
+                  filteredEnquiries.map((enq) => (
                     <TableRow key={enq.id}>
                       <TableCell className="text-zinc-600 whitespace-nowrap">
                         {format(new Date(enq.createdAt), "MMM d, yyyy")}
@@ -256,7 +364,7 @@ export default function TriageDashboard() {
               </DialogDescription>
             </DialogHeader>
             
-            <div className="space-y-4 my-4">
+            <div className="space-y-4 my-4 flex-1 overflow-y-auto">
               <div className="flex items-center gap-4">
                 <Button variant="secondary" onClick={() => fileInputRef.current?.click()} disabled={isIngesting}>
                   <FileText className="w-4 h-4 mr-2" /> Upload .txt File
@@ -272,7 +380,7 @@ export default function TriageDashboard() {
               </div>
               
               <Textarea 
-                className="flex-1 h-[40vh] resize-none overflow-y-auto bg-zinc-50 font-mono text-xs"
+                className="flex-1 h-[30vh] resize-none bg-zinc-50 font-mono text-xs" 
                 placeholder="From: ...\nEmail: ...\nMessage: ..."
                 value={ingestText}
                 onChange={(e) => setIngestText(e.target.value)}
@@ -280,7 +388,7 @@ export default function TriageDashboard() {
               />
 
               {isIngesting && (
-                <div className="bg-zinc-950 rounded-md p-4 mt-4 h-40 overflow-y-auto font-mono text-xs text-green-400 border border-zinc-800 shadow-inner">
+                <div className="bg-zinc-950 rounded-md p-4 h-32 overflow-y-auto font-mono text-xs text-green-400 border border-zinc-800 shadow-inner">
                   {ingestLogs.map((log, i) => (
                     <div key={i}>{log}</div>
                   ))}
@@ -298,6 +406,7 @@ export default function TriageDashboard() {
           </DialogContent>
         </Dialog>
 
+        {/* Detail Sheet */}
         <Sheet open={!!selectedEnquiry} onOpenChange={(open) => {
           if (!open) {
             setSelectedEnquiry(null);

@@ -12,7 +12,7 @@ Assuming Node.js and PostgreSQL are installed:
 6. Open `http://localhost:3000`
 
 ## What Works / What Doesn't
-*   **Works:** Single ingestion, batch SSE streaming (non-blocking concurrency), programmatic priority scoring, side-by-side UI, and non-destructive re-extraction.
+*   **Works:** Single ingestion, batch SSE streaming (non-blocking concurrency), programmatic priority scoring, side-by-side UI, filters, search, and non-destructive re-extraction.
 *   **Doesn't / Known Limitations:** 
     *   There is no pagination on the main list view. If the database grows to 10,000+ leads, the initial render will lag.
     *   The "Duplicate Detection" is currently an implicit manual process via UI sorting/searching, not an automated DB constraint.
@@ -38,3 +38,14 @@ Priority is calculated entirely in code, decoupled from the LLM:
 ## Two More Days
 1.  **Automated Deduplication:** Implement a vector similarity search (PGVector) to auto-group similar enquiries from the same contact email.
 2.  **Pagination & Caching:** Implement cursor-based pagination and React Query to handle large datasets cleanly.
+
+## Screenshots
+
+### 1. Main Triage Dashboard & Filters
+![Dashboard Table](./screenshots/dashboard-table.png)
+
+### 2. Batch Ingestion Modal & SSE Stream
+![Ingest Modal](./screenshots/ingest-model.png)
+
+### 3. Side-by-Side Detail Drawer & Human Overrides
+![Detail Drawer](./screenshots/detail-drawer.png)
