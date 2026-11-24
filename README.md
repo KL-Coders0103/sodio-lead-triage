@@ -1,51 +1,65 @@
-# Sodio Lead Triage
+# SODIO Lead Triage
 
-An AI-powered internal tool to ingest, extract, score, and manage unstructured project enquiries.
+An explainable, AI-assisted workspace for capturing, qualifying, prioritizing, assigning, and tracking inbound leads.
 
-## Run It
-Assuming Node.js and PostgreSQL are installed:
-1. `npm install`
-2. Configure `.env` with `DATABASE_URL`, `GROQ_API_KEY`, and `GROQ_MODEL`.
-3. `npx prisma generate`
-4. `npx prisma migrate dev`
-5. `npm run dev`
-6. Open `http://localhost:3000`
+> **Project state:** Greenfield planning baseline. These documents describe intended behavior and proposed architecture; they do not claim the features or infrastructure are already implemented.
 
-## What Works / What Doesn't
-*   **Works:** Single ingestion, batch SSE streaming (non-blocking concurrency), programmatic priority scoring, side-by-side UI, filters, search, and non-destructive re-extraction.
-*   **Doesn't / Known Limitations:** 
-    *   There is no pagination on the main list view. If the database grows to 10,000+ leads, the initial render will lag.
-    *   The "Duplicate Detection" is currently an implicit manual process via UI sorting/searching, not an automated DB constraint.
+## Product direction
+SODIO converts inconsistent inbound enquiries into reviewable lead records. AI extracts candidate information; transparent deterministic rules recommend priority; authorized people review, correct, assign, and choose next actions.
 
-## Decisions (The Undecided List)
-1.  **Duplicate Enquiries:** We allow them to ingest natively. I decided against hard-blocking duplicates at the DB level because a client might submit a follow-up with *different* requirements. The human triage agent can sort by email/name and drop the duplicate manually.
-2.  **Budgets (Lakhs, Euros, ranges):** The LLM extracts the exact phrase into `budgetRawText` (e.g., "50 Lakhs") but computes a conservative lower-bound USD equivalent into `budgetNormalizedUSD`. If someone says "$10k - $20k", it parses as `10000`. "Flexible" defaults to `0`.
-3.  **Prompt Injection / Model Targeting:** Encapsulated raw text in `<untrusted_lead_text>` XML tags. The system prompt instructs the model to flag `isGenuine: false` if it detects override attempts. The non-LLM scoring engine automatically drops `isGenuine: false` to `low` priority.
-4.  **Timeline ("ASAP" vs "Q1"):** Stored as a raw string. The model does not attempt to cast this to a strict Date object, as business timelines are inherently fluid and context-heavy.
-5.  **Multi-Project Enquiries:** Extracted into a single record. `serviceLine` defaults to the primary identifiable project, and the `summary` captures the dual nature of the request.
+## Planned capabilities
+- Manual capture and CSV batch ingestion.
+- Source preservation and structured extraction.
+- Explainable, versioned deterministic lead scoring.
+- Review queue and detailed lead timeline.
+- Assignment, notes, contact attempts, and lifecycle management.
+- Operational analytics and scoring governance.
+- Workspace isolation, RBAC, audit, and privacy controls.
 
-## Re-Extraction
-We handled re-extraction using a `ManagedField` JSON structure in PostgreSQL (`{ extracted, value, isOverridden }`). 
-When a user manually edits a field on the UI, `isOverridden` becomes `true`. When re-extraction is triggered, the API runs the LLM again, but our `mergeField` helper discards the new AI value for any field where `isOverridden` is true, ensuring human edits are never silently destroyed.
+## Documentation index
 
-## Scoring Rule
-Priority is calculated entirely in code, decoupled from the LLM:
-*   **HIGH:** `budgetNormalizedUSD` >= $20k OR (`budget` >= $10k AND `serviceLine` is AI/Blockchain/Web).
-*   **MEDIUM:** `budgetNormalizedUSD` >= $5k OR (`budget` > 0 AND `serviceLine` is not "other").
-*   **LOW:** Fails `isGenuine` check (spam/injection) OR budget falls below thresholds.
-*   *Reasoning:* We want sales reps focusing on high-value contracts in core competencies. Spam is instantly deprioritized.
+| File | Purpose |
+|---|---|
+| [Product Requirements](./docs/PRODUCT_REQUIREMENTS.md) | Problem, users, requirements, metrics |
+| [Project Requirements](./docs/PROJECT_REQUIREMENTS.md) | Scope, engineering constraints, quality gates |
+| [Master Feature Implementation](./docs/MASTER_FEATURE_IMPLEMENTATION.md) | Phase-by-phase implementation plan |
+| [Implementation Tracker](./docs/IMPLEMENTATION_TRACKER.md) | Status and verification evidence |
+| [Architecture](./docs/ARCHITECTURE.md) | Components, data flow, reliability boundaries |
+| [Database Schema](./docs/DATABASE_SCHEMA.md) | Proposed entities, relations, integrity, retention |
+| [API Specification](./docs/API_SPECIFICATION.md) | API routes, contracts, errors, concurrency |
+| [Frontend Architecture](./docs/FRONTEND_ARCHITECTURE.md) | Routes, screens, components, state, accessibility |
+| [Design System](./docs/DESIGN_SYSTEM.md) | Brand palette, tokens, typography, states |
+| [UI/UX Guidelines](./docs/UI_UX_GUIDELINES.md) | Queue, review, import, analytics experience |
+| [Security Guidelines](./docs/SECURITY_GUIDELINES.md) | Threat model, roles, AI/file safety, privacy |
+| [Testing Strategy](./docs/TESTING_STRATEGY.md) | Test layers, AI evaluation, quality gates |
+| [Development Guide](./docs/DEVELOPMENT_GUIDE.md) | Local setup and engineering workflow |
+| [Deployment Guide](./docs/DEPLOYMENT_GUIDE.md) | Environments, CI/CD, recovery, release |
+| [Decisions](./docs/DECISIONS.md) | Accepted/proposed ADRs |
 
-## Two More Days
-1.  **Automated Deduplication:** Implement a vector similarity search (PGVector) to auto-group similar enquiries from the same contact email.
-2.  **Pagination & Caching:** Implement cursor-based pagination and React Query to handle large datasets cleanly.
+## Delivery order
+Follow Phase 0–12 in [Master Feature Implementation](./docs/MASTER_FEATURE_IMPLEMENTATION.md). Update [Implementation Tracker](./docs/IMPLEMENTATION_TRACKER.md) only when verifiable evidence exists.
 
-## Screenshots
+## Design direction
+MVP light operations-console theme:
+- Ink: `#17212B`
+- Teal: `#087E80`
+- Indigo AI accent: `#5365D8`
+- Canvas: `#F4F7F6`
+- Surface: `#FFFFFF`
+- Hot/Warm/Cold use semantic red/amber/blue with visible text labels.
 
-### 1. Main Triage Dashboard & Filters
-![Dashboard Table](./screenshots/dashboard-table.png)
+See [Design System](./docs/DESIGN_SYSTEM.md).
 
-### 2. Batch Ingestion Modal & SSE Stream
-![Ingest Modal](./screenshots/ingest-model.png)
+## Product safeguards
+- AI output is a suggestion, never automatically verified fact.
+- Priority is deterministic, explainable, and versioned.
+- Autonomous rejection and outbound messaging are not MVP features.
+- Authorization and workspace isolation are enforced server-side.
+- Use synthetic data in development and CI.
+- Confirm provider data terms, retention, scoring policy, and hosting before production.
 
-### 3. Side-by-Side Detail Drawer & Human Overrides
-![Detail Drawer](./screenshots/detail-drawer.png)
+## Status
+All implementation phases begin as **Not started**. The proposed technology choices and external providers must be validated and recorded before their implementation phase.
+
+## License
+No license is declared by this documentation baseline. Add one after the repository owner chooses a license.
